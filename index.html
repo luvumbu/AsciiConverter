@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chiffrement JavaScript</title>
+</head>
+<body>
+    <script>
+        // Convertir une clé en entier pour la clé de chiffrement
+        function convertKeyToInt(key) {
+            if (typeof key !== 'string') throw new Error('La clé doit être une chaîne de caractères.');
+            return crc32(key) % 256; // Utiliser le modulo 256 pour rester dans la plage valide
+        }
+
+        // Générer un sel unique basé sur la clé
+        function generateSalt(key) {
+            if (typeof key !== 'string') throw new Error('La clé doit être une chaîne de caractères.');
+            return crc32(key) % 256;
+        }
+
+        // Mélanger les valeurs ASCII avec un facteur aléatoire pour éviter les répétitions
+        function mixAsciiValue(value, salt) {
+            return (value + salt * 3) % 256;
+        }
+
+        // Convertir une chaîne de caractères en valeurs ASCII en utilisant une clé de chiffrement
+        function stringToAscii(string, key) {
+            if (typeof string !== 'string' || typeof key !== 'string') throw new Error('Les paramètres doivent être des chaînes de caractères.');
+            let asciiArray = [];
+            let adjustedKey = convertKeyToInt(key);
+            let salt = generateSalt(key);
+
+            for (let i = 0; i < string.length; i++) {
+                let originalAscii = string.charCodeAt(i);
+                let newAscii = mixAsciiValue(originalAscii + adjustedKey, salt);
+                asciiArray.push(newAscii);
+            }
+
+            return asciiArray.join(',');
+        }
+
+        // Convertir une chaîne de valeurs ASCII en chaîne de caractères avec une clé
+        function asciiToStringWithKey(asciiString, key) {
+            if (typeof asciiString !== 'string' || typeof key !== 'string') throw new Error('Les paramètres doivent être des chaînes de caractères.');
+            let asciiArray = asciiString.split(',').map(Number);
+            let string = '';
+            let adjustedKey = convertKeyToInt(key);
+            let salt = generateSalt(key);
+
+            asciiArray.forEach(ascii => {
+                let originalAscii = mixAsciiValue(ascii - adjustedKey, -salt);
+                if (originalAscii < 0) {
+                    originalAscii = 256 + originalAscii; // Ramener dans la plage 0-255
+                }
+                string += String.fromCharCode(originalAscii);
+            });
+
+            return string;
+        }
+
+        // Fonction CRC32 en JavaScript (simple implémentation)
+        function crc32(str) {
+            let crc = 0 ^ (-1);
+            for (let i = 0; i < str.length; i++) {
+                crc ^= str.charCodeAt(i);
+                for (let j = 0; j < 8; j++) {
+                    crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+                }
+            }
+            return (crc ^ (-1)) >>> 0;
+        }
+
+        // Exemple d'utilisation
+        fetch('index.php')
+            .then(response => response.json())
+            .then(data => {
+                let encryptedAsciiString = data.encrypted;
+                console.log("Encrypted from PHP:", encryptedAsciiString);
+
+                // Déchiffrement en utilisant la même clé
+                let key2 = "12357578a";
+                let decryptedString = asciiToStringWithKey(encryptedAsciiString, key2);
+                console.log("Decrypted:", decryptedString);
+            })
+            .catch(error => console.error('Erreur:', error));
+    </script>
+</body>
+</html>
